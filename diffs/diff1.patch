@@ -1,0 +1,102 @@
+diff --git a/bin/sbush/sbush.c b/bin/sbush/sbush.c
+index 8621e84..6e857d7 100644
+--- a/bin/sbush/sbush.c
++++ b/bin/sbush/sbush.c
+@@ -3,49 +3,58 @@
+ #include <unistd.h>
+ #include <string.h>
+ 
+-char* get_command() {
+-        char *command;
+-	command = (char*)malloc(sizeof(char));
+-        int pos = 0,c;
+-	
+-        do {
+-
+-		c = getchar();
+-		command[pos++] = c;
+-	} while(c != '\n');
+-	command[--pos]='\0';
+-	return command;
+-}
+-
+-char* split_command(char* ch) {
+-	int pos=0,i=0;
+-	char *path;
+-        path = (char*)malloc(sizeof(char));
+-	while(ch[pos] != ' ')
+-		pos++;
+-	pos++;
+-	while(ch[pos] != '\0')
+-		path[i++]=ch[pos++];
+-	path[i]='\0';
+-	return path;
+-}
++typedef struct{
++    char a[100][100];
++}command;
+ 
++command com[10];
+ 
+ int main(int argc, char* argv[]) {
+-  char *command,*path;
+-  command = (char*)malloc(sizeof(char));
+-  path = (char*)malloc(sizeof(char));
++  int pos=0,i=0,j=0,c;
+   puts("sbush> ");
+   do {
+-	printf("\n>");
+-  	command = get_command();
+-	path = split_command(command);
+-	//printf("%s",path);
+-	if(strcmp(command,"exit\0") != 0)
+-		if ( chdir(path) != 0 )
+-        		printf("Could not change directory\n");
+-	execl("/bin/ls","ls","-l",path);
+-  }while(strcmp(command,"exit\0") != 0);
+-  path = split_command(command);
++        printf("\n>");
++        pos=0,i=0,j=0;
++        do {
++           
++                c = getchar();
++
++                if(c == '|') {
++                    pos++;
++                    i=0,j=0;
++                    c = getchar(); //take space
++                    c = getchar(); //take first char of next command
++                }
++                if(c == '\n') {
++                    com[pos].a[i][j]='\0';
++                    printf("*%s*",com[pos].a[i]);
++                    i++;j=0;
++                    //com[pos].a[i]=NULL;
++                    com[pos].a[i][j]='\0';
++                    printf("*%s*",com[pos].a[i]);
++                    break;
++                }
++                if(c == ' ') {
++                    com[pos].a[i][j]='\0';
++                    printf("&%s&",com[pos].a[i]);
++                    i++;
++                    j=0;
++                }
++                else {
++                    com[pos].a[i][j++] = c;
++                    //printf("%c*, %d, %d, %d",com[pos].a[i][j],pos,i,j);
++
++                }
++        } while(c != '\n');
++
++        //printf("%s",com[0].a[0]);
++        /*if(strcmp(com[0].a[0],"ls\0")==0) {
++            printf("%s",com[0].a[0]);
++            if(fork()==0)
++                execv("/bin/ls",(char * const *)com[0].a);
++                //execv("/bin/ls",(char * const *)"/bin/ls -l /Users/noopur/test\0");
++        }*/
++
++  }while(strcmp(com[0].a[0],"exit\0")!=0);
+   return 0;
+ }

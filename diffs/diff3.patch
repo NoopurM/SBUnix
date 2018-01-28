@@ -1,0 +1,147 @@
+diff --git a/bin/sbush/sbush.c b/bin/sbush/sbush.c
+index ae7ba5c..fa385d6 100644
+--- a/bin/sbush/sbush.c
++++ b/bin/sbush/sbush.c
+@@ -1,6 +1,6 @@
+ #include "sbush.h"
+ 
+-int non_interactive(char *argv) {
++int non_interactive(char *argv, command_struct commands[]) {
+     int pos = 0, c = 0, ret = 0;
+     FILE *fd;
+     char *command;
+@@ -26,14 +26,15 @@ int non_interactive(char *argv) {
+                 }
+ 
+                command = realloc(command, (pos+1)*sizeof(char));
+-               printf("%c",c);
++               //printf("%c",c);
+                (command)[pos++] = c;
+                c = fgetc(fd);
+             }
+             command = realloc(command, (pos+1)*sizeof(char));
+             (command)[pos]='\0';
+             //printf("\nRR: getcmd :*%s*", command);
+-            //split_command(command, command_list);
++            split_command(command, commands);
++            execute_command(commands[0].args);
+         }
+         //printf("\nRR: lastcmd :*%s*", command);
+     }
+@@ -66,6 +67,7 @@ int split_command(char *command_line, command_struct commands[]) {
+             commands[i].args = realloc(commands[i].args, (j+1)*sizeof(char *));
+             ((commands)[i]).args[j] = NULL;
+         } else if (command_line[pos] == '|') {
++            ret++;
+             ((commands)[i]).args[j] = (char *)realloc(((commands)[i]).args[j], (k+1)*sizeof(char));
+             ((commands)[i]).args[j][k] = '\0';
+             //printf("\nRR:pipe arg :%s", ((commands)[i]).args[j]);
+@@ -97,6 +99,44 @@ int check_bin_exists(char *bin_path) {
+     }
+     return 1;
+ }
++
++int transit(int in, int out, char **command_args) {
++    pid_t pid=0;
++    if(fork() == 0) {
++        if(in != 0) {
++            dup2(in,0);
++            close(in);
++        }
++        if(out != 1) {
++           dup2(out,1);
++           close(out);
++        }
++        return execute_command(command_args);
++    }
++    else {
++        wait(NULL)
++    }
++    return pid;
++}
++
++int execute_pipes(int ret, command_struct commands[]) {
++
++  int i=0,fd[2], in=0;
++  int status=0;
++  for(i=0;i<ret;i++) {
++      
++      pipe(fd);
++      //printf("fd[0]:%d fd[1]:%d",fd[0],fd[1]);
++      transit(in,fd[1],commands[i].args);
++      close(fd[1]);
++      in=fd[0];
++  }
++  if(in != 0)
++      dup2(in,0); 
++
++  return execute_command(commands[i].args);
++}
++
+ int execute_command(char **command_args) {
+     //Check if command is built-in or not
+     char *all_bin_path = NULL, *bin_path = NULL, *bin_name = NULL;
+@@ -126,9 +166,9 @@ int execute_command(char **command_args) {
+     }
+ 
+     if (found == 1) {
+-        //printf("\nExecuting [%s] with args [%s]", bin_path, command_args[0]);
++        printf("\nExecuting [%s] with args [%s]", bin_path, command_args[0]);
+         if (fork() == 0) {
+-            execv(bin_path, command_args);
++            ret = execv(bin_path, command_args);
+         } else {
+             wait(&status);
+         }
+@@ -158,21 +198,27 @@ int main(int argc, char *argv[]) {
+  
+   if(argc > 1) {
+     
+-    non_interactive(argv[1]);
++    non_interactive(argv[1],command_list);
+   
+   }
+   else {  
+ 
+-  puts("sbush> ");
++    puts("sbush> ");
+ 
+-  do {
+-	printf("\n>");
+-  	ret = get_command(&command_line);
+-	ret = split_command(command_line, command_list);
+-    ret = execute_command(command_list[0].args);
+-  }while(strcmp(command_line,"exit\0") != 0);
++    do {
++	    printf("\n>");
++  	    ret = get_command(&command_line);
++	    ret = split_command(command_line, command_list);
++        if(ret > 0) {
++            printf("*%d*",ret);
++            execute_pipes(ret, command_list);
++        }
++        else {
++            ret = execute_command(command_list[0].args);
++        }
++    }while(strcmp(command_line,"exit\0") != 0);
+ 
+-   }
++  }
+ 
+   if (command_line != NULL) {
+     free(command_line);
+diff --git a/bin/sbush/sbush.h b/bin/sbush/sbush.h
+index 27bd21c..4c8cd17 100644
+--- a/bin/sbush/sbush.h
++++ b/bin/sbush/sbush.h
+@@ -9,7 +9,9 @@ typedef struct commands {
+     char **args; //first arg will be command and rest will be options and arguments.
+ } command_struct;
+ 
+-int non_interactive(char *argv);
++int transit(int in, int out, char **command_args);
++int execute_pipes(int ret, command_struct commands[]);
++int non_interactive(char *argv, command_struct command_list[]);
+ int get_command(char **command_line);
+ int split_command(char *command_line, command_struct command_list[]);
+ int execute_command(char **command_args);

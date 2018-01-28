@@ -1,0 +1,153 @@
+diff --git a/bin/sbush/sbush.c b/bin/sbush/sbush.c
+index 9562152..996465d 100644
+--- a/bin/sbush/sbush.c
++++ b/bin/sbush/sbush.c
+@@ -1,4 +1,5 @@
+ #include "sbush.h"
++#include <fcntl.h>
+ 
+ static char *prompt = "sbush";
+ int non_interactive(char *argv, command_struct commands[]) {
+@@ -44,6 +45,70 @@ int non_interactive(char *argv, command_struct commands[]) {
+     return ret;
+ }
+ 
++int spawn_proc (int in, int out, command_struct command)
++{
++  pid_t pid;
++
++  if ((pid = fork ()) == 0)
++    {
++      if (in != 0)
++        {
++          dup2 (in, 0);
++          close (in);
++        }
++
++      if (out != 1)
++        {
++          dup2 (out, 1);
++          close (out);
++        }
++	
++	//	return execute_command(command);
++//      return execvp (cmd->argv [0], (char * const *)cmd->argv);
++    printf("**%s**",command.args[0]);
++    return execve(command.args[0], command.args,NULL);
++      //execve(bin_path, command_args, NULL);
++    }
++
++  return pid;
++}
++
++
++int fork_pipes (int n, command_struct commands[])
++{ 
++  int i;
++  //pid_t pid; 
++  int in, fd [2];
++  
++  /* The first process should get its input from the original file descriptor 0.  */
++  in = 0;
++  
++  /* Note the loop bound, we spawn here all, but the last stage of the pipeline.  */
++  for (i = 0; i < n - 1; ++i)
++    { 
++      pipe (fd);
++      
++      /* f [1] is the write end of the pipe, we carry `in` from the prev iteration.  */
++      spawn_proc (in, fd [1], commands[i]);
++      
++      /* No need for the write end of the pipe, the child will write here.  */
++      close (fd [1]);
++      
++      /* Keep the read end of the pipe, the next child will read from there.  */
++      in = fd [0];
++    }
++  
++  /* Last stage of the pipeline - set stdin be the read end of the previous pipe
++     and output to the original file descriptor 1. */
++  if (in != 0)
++    dup2 (in, 0);
++  
++  /* Execute the last stage with the current process. */
++  //return execvp (cmd [i].argv [0], (char * const *)cmd [i].argv);
++//	return execute_command(commands[i]);
++return execve(commands[i].args[0], commands[i].args,NULL);
++}
++
+ int get_command(char **command) {
+     int pos = 0, ret = 0, bytes_read = 0;
+     char buf[1];
+@@ -67,17 +132,28 @@ int split_command(char *command_line, command_struct commands[]) {
+     commands[i].args[j] = NULL;
+     do {
+         if (command_line[pos] == ' ') {
++            if(k!=0) {
+             commands[i].args[j] = (char *)realloc(commands[i].args[j], (k+1)*sizeof(char));
+             commands[i].args[j][k] = '\0';
+-            //printf("\nRR:final arg :%s", commands[i].args[j]);
++            printf("\nRR:final arg :$%s$k:%d -- i:%dj:%d", commands[i].args[j],k,i,j);
+             k = 0;
+             j++; pos++;
+             commands[i].args = realloc(commands[i].args, (j+1)*sizeof(char *));
+             ((commands)[i]).args[j] = NULL;
++           }
++           else {
++               pos++;
++           }
+         } else if (command_line[pos] == '|') {
+             ((commands)[i]).args[j] = (char *)realloc(((commands)[i]).args[j], (k+1)*sizeof(char));
+-            ((commands)[i]).args[j][k] = '\0';
+-            //printf("\nRR:pipe arg :%s", ((commands)[i]).args[j]);
++            if(k == 0)
++                   (commands)[i].args[j] = NULL;
++            else {
++                   //((commands)[i]).args[j][k] = '\0';
++                   j++;
++                   printf("j - *%d*",j);
++            }
++            printf("\nRR:pipe arg :$%s$k:%d -- i:%dj:%d", ((commands)[i]).args[j],k,i,j);
+             j = 0;
+             k = 0;
+             i++; pos++;
+@@ -85,12 +161,15 @@ int split_command(char *command_line, command_struct commands[]) {
+             ((commands)[i]).args[j] = NULL;
+         } else {
+             commands[i].args[j] = (char *)realloc(commands[i].args[j], (k+1)*sizeof(char));
+-            commands[i].args[j][k++] = command_line[pos++];
++            commands[i].args[j][k] = command_line[pos];
++            printf("%c",commands[i].args[j][k]);
++            k++;
++            pos++;
+         }
+     } while(command_line[pos] != '\0');
+     ((commands)[i]).args[j] = (char *)realloc(((commands)[i]).args[j], (k+1)*sizeof(char));
+     ((commands)[i]).args[j][k] = '\0';
+-    //printf("\nRR:last token :%s", ((commands)[i]).args[j]);
++    printf("\nRR:last token :%s k:%d -- i:%dj:%d", ((commands)[i]).args[j],k,i,j);
+     
+     //Put last arg as NULL to get execv wokring.
+     j++;
+@@ -217,7 +296,7 @@ int execute_command(command_struct command) {
+     }
+ 
+     if (found == 1) {
+-        //printf("\nExecuting [%s] with args [%s] [%s]", bin_path, command_args[0], command_args[1]);
++        printf("\nExecuting [%s] with args [%s] [%s]", bin_path, command_args[0], command_args[1]);
+         if (fork() == 0) {
+             execve(bin_path, command_args, NULL);
+         } else {
+diff --git a/bin/sbush/sbush.h b/bin/sbush/sbush.h
+index 0cfaf8a..3ca3529 100644
+--- a/bin/sbush/sbush.h
++++ b/bin/sbush/sbush.h
+@@ -12,6 +12,8 @@ typedef struct commands {
+     int args_len;
+ } command_struct;
+ 
++int spawn_proc (int in, int out, command_struct command);
++int fork_pipes (int n, command_struct commands[]);
+ int non_interactive(char *argv, command_struct command_list[]);
+ int get_command(char **command_line);
+ int split_command(char *command_line, command_struct command_list[]);

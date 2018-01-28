@@ -1,0 +1,91 @@
+diff --git a/bin/sbush/sbush.c b/bin/sbush/sbush.c
+index 242dffd..9918618 100644
+--- a/bin/sbush/sbush.c
++++ b/bin/sbush/sbush.c
+@@ -1,7 +1,47 @@
+ #include "sbush.h"
+ 
++int non_interactive(char *argv) {
++    int pos = 0, c = 0, ret = 0;
++    FILE *fd;
++    char *command;
++    //printf("%s",argv[1]);
++    fd = fopen(argv,"r");
++    if(fd) {
++        while((c = fgetc(fd)) != EOF) {
++            pos = 0;
++            command = NULL;
++            //c = fgetc(fd);
++            while(c != '\n') {
++
++                if(c == '#') {
++                    while(c != '\n')
++                        c = fgetc(fd);
++
++                    c = fgetc(fd); //get char after \n
++                }
++
++                if(c == '\n') {
++                    while(c == '\n')
++                        c = fgetc(fd);
++                }
++
++               command = realloc(command, (pos+1)*sizeof(char));
++               printf("%c",c);
++               (command)[pos++] = c;
++               c = fgetc(fd);
++            }
++            command = realloc(command, (pos+1)*sizeof(char));
++            (command)[pos]='\0';
++            //printf("\nRR: getcmd :*%s*", command);
++            //split_command(command, command_list);
++        }
++        //printf("\nRR: lastcmd :*%s*", command);
++    }
++    return ret;
++}
++
+ int get_command(char **command) {
+-    int pos = 0,c, ret = 0;
++    int pos = 0, c, ret = 0;
+     do {
+         c = getchar();
+         *command = (char *)realloc(*command, (pos+1)*sizeof(char));
+@@ -73,7 +113,14 @@ int main(int argc, char *argv[]) {
+   char *command_line = NULL;
+   command_struct command_list[10];
+   int ret = 0;
++ 
++  if(argc > 1) {
++    
++    non_interactive(argv[1]);
+   
++  }
++  else {  
++
+   puts("sbush> ");
+ 
+   do {
+@@ -86,8 +133,11 @@ int main(int argc, char *argv[]) {
+     }
+   }while(strcmp(command_line,"exit\0") != 0);
+ 
++   }
++
+   if (command_line != NULL) {
+     free(command_line);
+   }
++
+   return 0;
+ }
+diff --git a/bin/sbush/sbush.h b/bin/sbush/sbush.h
+index b926a44..1c7cbad 100644
+--- a/bin/sbush/sbush.h
++++ b/bin/sbush/sbush.h
+@@ -9,5 +9,6 @@ typedef struct commands {
+     char **args; //first arg will be command and rest will be options and arguments.
+ } command_struct;
+ 
++int non_interactive(char *argv);
+ int get_command(char **command_line);
+ int split_command(char *command_line, command_struct command_list[]);
